@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Test / tool caches
+.pytest_cache/
+.benchmarks/
+.hypothesis/
+.coverage
+htmlcov/
+
+# Data: uploaded documents, parse cache, vector index, extracted facts (contains personal financial data)
+.finpipe/
+test_docs/
+*.pdf
+
+# Machine-specific settings and logs
+.env
+*.log

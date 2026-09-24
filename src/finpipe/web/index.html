@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>finpipe · Document Intelligence</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --panel: #ffffff; --text: #1c2230; --muted: #667085; --border: #e3e6eb;
+    --accent: #2f5bea; --accent-soft: #e8eefe; --ok: #16794c; --ok-soft: #e4f5ec;
+    --warn: #9a5b00; --warn-soft: #fff4e0; --err: #b42318; --err-soft: #fdecea;
+    --finance: #2f5bea; --property: #0f7b6c; --other: #7a5af8;
+    --radius: 10px; --shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.08);
+    --mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1218; --panel: #171b23; --text: #e6e8ec; --muted: #98a2b3; --border: #2a303b;
+      --accent: #6d8dff; --accent-soft: #1d2640; --ok: #4ccf8f; --ok-soft: #15291f;
+      --warn: #f5b34a; --warn-soft: #2d2412; --err: #ff7a6e; --err-soft: #2e1714;
+      --finance: #6d8dff; --property: #3cc4b0; --other: #a48bff;
+      --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; align-items: center; gap: 12px; padding: 14px 24px;
+           border-bottom: 1px solid var(--border); background: var(--panel); }
+  header h1 { font-size: 17px; margin: 0; letter-spacing: -.01em; }
+  header .sub { color: var(--muted); font-size: 13px; }
+  header .models { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+  main { display: grid; grid-template-columns: minmax(320px, 420px) 1fr; gap: 20px;
+         padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; padding: 16px; } header { padding: 12px 16px; flex-wrap: wrap; } }
+  .col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+          box-shadow: var(--shadow); padding: 18px; }
+  .card h2 { font-size: 14px; margin: 0 0 14px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  label.field { display: block; font-weight: 600; font-size: 13px; margin: 14px 0 6px; }
+  select, textarea { width: 100%; font: inherit; color: var(--text); background: var(--bg);
+                     border: 1px solid var(--border); border-radius: 8px; padding: 9px 10px; }
+  select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  textarea { resize: vertical; min-height: 76px; }
+  .hint { color: var(--muted); font-size: 12.5px; margin-top: 6px; min-height: 1em; }
+
+  .drop { border: 2px dashed var(--border); border-radius: var(--radius); padding: 26px 16px; text-align: center;
+          cursor: pointer; transition: border-color .15s, background .15s; background: var(--bg); }
+  .drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+  .drop svg { width: 34px; height: 34px; color: var(--accent); }
+  .drop strong { display: block; margin-top: 6px; }
+  .drop span { color: var(--muted); font-size: 12.5px; }
+  .files { list-style: none; margin: 10px 0 0; padding: 0; }
+  .files li { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 6px 8px;
+              border: 1px solid var(--border); border-radius: 6px; margin-top: 6px; }
+  .files li span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .files button { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 15px; line-height: 1; }
+  .row { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+  .check { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+
+  .btn { font: inherit; font-weight: 600; border: 0; border-radius: 8px; padding: 10px 16px; cursor: pointer;
+         background: var(--accent); color: #fff; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); padding: 5px 9px; font-weight: 500; }
+  .btn.block { width: 100%; margin-top: 16px; }
+
+  .badge { display: inline-block; font-size: 11.5px; font-weight: 600; border-radius: 999px; padding: 2px 9px;
+           background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+  .badge.finance { background: color-mix(in srgb, var(--finance) 14%, transparent); color: var(--finance); }
+  .badge.property { background: color-mix(in srgb, var(--property) 14%, transparent); color: var(--property); }
+  .badge.other { background: color-mix(in srgb, var(--other) 14%, transparent); color: var(--other); }
+  .badge.ok { background: var(--ok-soft); color: var(--ok); }
+  .badge.warn { background: var(--warn-soft); color: var(--warn); }
+  .badge.err { background: var(--err-soft); color: var(--err); }
+  .badge.muted { background: var(--bg); color: var(--muted); border: 1px solid var(--border); }
+
+  .list { display: flex; flex-direction: column; gap: 8px; }
+  .item { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+  .item .top { display: flex; align-items: center; gap: 8px; }
+  .item .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .item .meta { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
+  .empty { color: var(--muted); font-size: 13px; text-align: center; padding: 12px; }
+  .spinner { width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent;
+             border-radius: 50%; display: inline-block; animation: spin .8s linear infinite; vertical-align: -2px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .scope { display: grid; grid-template-columns: 1fr 1.4fr 1fr; gap: 12px; }
+  .item .facts { font-size: 12.5px; margin-top: 6px; color: var(--text); }
+  .item details.facts summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+  .item details.facts pre { margin: 6px 0 0; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border);
+                            border-radius: 6px; font: 11.5px/1.5 var(--mono); white-space: pre-wrap; max-height: 260px; overflow: auto; }
+  @media (max-width: 560px) { .scope { grid-template-columns: 1fr; } }
+  .answer { margin-top: 18px; border-top: 1px solid var(--border); padding-top: 16px; display: none; }
+  .answer.show { display: block; }
+  .answer .head { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+  .answer .body { white-space: pre-wrap; word-wrap: break-word; font-size: 14.5px; line-height: 1.6; }
+  .answer .body.md { white-space: normal; overflow-x: auto; }
+  .md p { margin: 0 0 10px; }
+  .md h3, .md h4 { margin: 14px 0 6px; font-size: 15px; }
+  .md ul, .md ol { margin: 0 0 10px; padding-left: 22px; }
+  .md hr { border: 0; border-top: 1px solid var(--border); margin: 14px 0; }
+  .md table { border-collapse: collapse; margin: 6px 0 12px; font-size: 13px; }
+  .md th, .md td { border: 1px solid var(--border); padding: 5px 9px; text-align: left; vertical-align: top; }
+  .md th { background: var(--bg); font-weight: 600; }
+  .md td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; font-family: inherit; font-weight: inherit; }
+  .md em { color: var(--muted); }
+  .md code { font-family: var(--mono); font-size: 12.5px; }
+  .alert { border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-top: 14px; }
+  .alert.warn { background: var(--warn-soft); color: var(--warn); }
+  .alert.err { background: var(--err-soft); color: var(--err); }
+  .num { font-family: var(--mono); font-weight: 600; }
+  details.src { border: 1px solid var(--border); border-radius: 8px; margin-top: 8px; }
+  details.src summary { cursor: pointer; padding: 8px 12px; font-size: 13px; display: flex; gap: 8px; align-items: center; }
+  details.src summary .lbl { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  details.src pre { margin: 0; padding: 10px 12px; border-top: 1px solid var(--border); font: 12px/1.5 var(--mono);
+                    white-space: pre-wrap; max-height: 280px; overflow: auto; background: var(--bg); }
+  #banner { display: none; margin: 16px 24px 0; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>finpipe</h1>
+    <div class="sub">Local document intelligence: layout-aware OCR · hybrid retrieval · small language models</div>
+  </div>
+  <div class="models" id="models"></div>
+</header>
+<div id="banner" class="alert err"></div>
+
+<main>
+  <div class="col">
+    <section class="card">
+      <h2>Upload document</h2>
+      <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose files to upload">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 16V4m0 0l-4 4m4-4l4 4"/><path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2"/>
+        </svg>
+        <strong>Drop PDF or image files here</strong>
+        <span>or click to browse · PDF, PNG, JPG, TIFF, BMP, WEBP</span>
+      </div>
+      <input type="file" id="file" multiple hidden accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp">
+      <ul class="files" id="files"></ul>
+
+      <label class="field" for="doctype">Document type</label>
+      <select id="doctype"></select>
+      <div class="hint" id="doctype-hint"></div>
+
+      <div class="row">
+        <label class="check"><input type="checkbox" id="force"> Re-process if already indexed</label>
+      </div>
+      <button class="btn block" id="upload" disabled>Upload &amp; process</button>
+    </section>
+
+    <section class="card">
+      <h2>Processing</h2>
+      <div class="list" id="jobs"><div class="empty">No uploads yet in this session.</div></div>
+    </section>
+
+    <section class="card">
+      <h2>Indexed documents</h2>
+      <div class="list" id="docs"><div class="empty">Loading…</div></div>
+    </section>
+  </div>
+
+  <div class="col">
+    <section class="card">
+      <h2>Ask your documents</h2>
+      <div class="scope">
+        <div>
+          <label class="field" for="scope-cat">Category</label>
+          <select id="scope-cat">
+            <option value="">All categories</option>
+          </select>
+        </div>
+        <div>
+          <label class="field" for="scope-doc">Document</label>
+          <select id="scope-doc"><option value="">All documents</option></select>
+        </div>
+        <div>
+          <label class="field" for="scope-year">Assessment year</label>
+          <select id="scope-year"><option value="">All years</option></select>
+        </div>
+      </div>
+      <label class="field" for="question">Question</label>
+      <textarea id="question" placeholder="e.g. List closing balances for each bank account in the combined statement&#10;e.g. What is the total TDS in Form 16 Part A for AY 2025-26?&#10;e.g. What is the monthly rent and lock-in period in the lease?"></textarea>
+      <div class="row">
+        <button class="btn" id="ask">Ask</button>
+        <span class="hint" id="route-hint"></span>
+      </div>
+
+      <div class="answer" id="answer">
+        <div class="head" id="answer-head"></div>
+        <div class="body" id="answer-body"></div>
+        <div id="answer-warn"></div>
+        <div id="answer-sources"></div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const state = { meta: null, types: {}, files: [], polling: null };
+
+function el(tag, attrs = {}, ...children) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") n.className = v; else if (k.startsWith("on")) n.addEventListener(k.slice(2), v); else n.setAttribute(k, v);
+  }
+  for (const c of children.flat()) if (c != null) n.append(c.nodeType ? c : document.createTextNode(c));
+  return n;
+}
+const catBadge = (cat) => el("span", { class: `badge ${cat}` }, state.meta?.categories.find(c => c.category === cat)?.label || cat);
+const typeLabel = (key) => state.types[key]?.label || key;
+function showError(msg) { const b = $("banner"); b.textContent = msg; b.style.display = msg ? "block" : "none"; }
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) {
+    let detail = r.statusText;
+    try { detail = (await r.json()).detail || detail; } catch {}
+    throw new Error(detail);
+  }
+  return r;
+}
+
+// ---------- metadata / dropdowns ----------
+async function loadMeta() {
+  try {
+    state.meta = await (await api("/api/meta")).json();
+  } catch (e) { showError("Cannot reach the finpipe server: " + e.message); return; }
+  const sel = $("doctype"), cat = $("scope-cat");
+  for (const group of state.meta.categories) {
+    const og = el("optgroup", { label: group.label });
+    for (const t of group.types) { state.types[t.key] = t; og.append(el("option", { value: t.key }, t.label)); }
+    sel.append(og);
+    cat.append(el("option", { value: group.category }, group.label));
+  }
+  sel.value = "bank_statement";
+  updateTypeHint();
+  const m = $("models");
+  m.append(el("span", { class: "badge muted", title: "Default small language model" }, "SLM: " + state.meta.default_model));
+  if (state.meta.finance_model)
+    m.append(el("span", { class: "badge finance", title: "Used for questions over Finance documents" }, "Finance: " + state.meta.finance_model));
+  updateRouteHint();
+}
+function updateTypeHint() {
+  const t = state.types[$("doctype").value];
+  $("doctype-hint").textContent = t?.hint ? t.hint.split(". ")[0] + "." : "";
+}
+function updateRouteHint() {
+  const fin = state.meta?.finance_model;
+  const cat = $("scope-cat").value;
+  $("route-hint").textContent = !fin ? "" :
+    cat === "finance" ? `Answered by ${fin}` :
+    cat ? `Answered by ${state.meta.default_model}` : "Finance matches are routed to " + fin;
+}
+$("doctype").addEventListener("change", updateTypeHint);
+$("scope-cat").addEventListener("change", () => { updateRouteHint(); renderDocOptions(); });
+
+// ---------- file picking ----------
+const allowed = /\.(pdf|png|jpe?g|tiff?|bmp|webp)$/i;
+function addFiles(list) {
+  for (const f of list) {
+    if (!allowed.test(f.name)) { showError(`${f.name}: unsupported file type`); continue; }
+    if (!state.files.some(x => x.name === f.name && x.size === f.size)) state.files.push(f);
+  }
+  renderFiles();
+}
+function renderFiles() {
+  const ul = $("files"); ul.replaceChildren();
+  state.files.forEach((f, i) => ul.append(el("li", {},
+    el("span", { title: f.name }, f.name),
+    el("span", {}, `${(f.size / 1048576).toFixed(1)} MB `,
+      el("button", { title: "Remove", "aria-label": `Remove ${f.name}`, onclick: () => { state.files.splice(i, 1); renderFiles(); } }, "×")))));
+  $("upload").disabled = !state.files.length;
+}
+const drop = $("drop");
+drop.addEventListener("click", () => $("file").click());
+drop.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("file").click(); } });
+$("file").addEventListener("change", (e) => { addFiles(e.target.files); e.target.value = ""; });
+["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", (e) => addFiles(e.dataTransfer.files));
+
+// ---------- upload & jobs ----------
+$("upload").addEventListener("click", async () => {
+  const fd = new FormData();
+  state.files.forEach(f => fd.append("files", f));
+  fd.append("doc_type", $("doctype").value);
+  fd.append("force", $("force").checked);
+  $("upload").disabled = true; showError("");
+  try {
+    await api("/api/documents", { method: "POST", body: fd });
+    state.files = []; renderFiles(); pollJobs();
+  } catch (e) { showError("Upload failed: " + e.message); $("upload").disabled = false; }
+});
+
+const statusBadge = { queued: ["muted", "Queued"], processing: ["warn", "Processing"], done: ["ok", "Done"], failed: ["err", "Failed"] };
+function fmtKinds(k) { return Object.entries(k || {}).map(([a, b]) => `${b} ${a}`).join(", "); }
+
+async function pollJobs() {
+  clearTimeout(state.polling);
+  let jobs = [];
+  try { jobs = await (await api("/api/jobs")).json(); } catch { return; }
+  const box = $("jobs"); box.replaceChildren();
+  if (!jobs.length) box.append(el("div", { class: "empty" }, "No uploads yet in this session."));
+  for (const j of jobs) {
+    const [cls, txt] = statusBadge[j.status] || ["muted", j.status];
+    const busy = j.status === "queued" || j.status === "processing";
+    const item = el("div", { class: "item" },
+      el("div", { class: "top" },
+        el("span", { class: "name", title: j.files.join(", ") }, j.files.length > 1 ? `${j.files[0]} +${j.files.length - 1}` : j.files[0]),
+        el("span", { class: `badge ${cls}` }, busy ? el("span", { class: "spinner" }) : null, busy ? " " : "", txt)),
+      el("div", { class: "meta" }, catBadge(j.category), " ", typeLabel(j.doc_type)));
+    for (const r of j.reports || []) {
+      const secs = r.seconds ? ` · ${r.seconds.toFixed(1)}s` : "";
+      const pages = r.pages ? ` · ${r.pages} pages (${fmtKinds(r.kinds)})` : "";
+      item.append(el("div", { class: "meta" }, `${r.path.split(/[\\/]/).pop()}: ${r.status}${pages} · ${r.chunks} chunks${secs}`));
+      if (r.error) item.append(el("div", { class: "meta", style: "color:var(--err)" }, r.error));
+    }
+    if (j.error) item.append(el("div", { class: "meta", style: "color:var(--err)" }, j.error));
+    box.append(item);
+  }
+  const active = jobs.some(j => j.status === "queued" || j.status === "processing");
+  if (state.wasActive && !active) loadDocs();
+  state.wasActive = active;
+  if (active) state.polling = setTimeout(pollJobs, 1500);
+}
+
+// ---------- documents ----------
+async function loadDocs() {
+  try { state.docs = await (await api("/api/documents")).json(); } catch { return; }
+  const box = $("docs"); box.replaceChildren();
+  if (!state.docs.length) box.append(el("div", { class: "empty" }, "Nothing indexed yet. Upload a document to get started."));
+  for (const d of state.docs) {
+    box.append(el("div", { class: "item" },
+      el("div", { class: "top" },
+        el("span", { class: "name", title: d.source }, d.source),
+        el("button", { class: "btn ghost", title: "Remove from index", onclick: () => removeDoc(d) }, "Remove")),
+      el("div", { class: "meta" }, catBadge(d.category), " ", typeLabel(d.doc_type), ` · ${d.pages} pages · ${d.chunks} chunks`),
+      d.facts_text ? el("details", { class: "facts" },
+        el("summary", {}, d.summary || "Key facts"),
+        el("pre", {}, d.facts_text)) : null));
+  }
+  renderDocOptions();
+}
+function renderDocOptions() {
+  const sel = $("scope-doc"), cur = sel.value, cat = $("scope-cat").value;
+  sel.replaceChildren(el("option", { value: "" }, "All documents"));
+  for (const d of state.docs || []) if (!cat || d.category === cat) sel.append(el("option", { value: d.doc_id }, d.source));
+  if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
+  renderYearOptions();
+}
+function renderYearOptions() {
+  const sel = $("scope-year"), cur = sel.value, docId = $("scope-doc").value;
+  const docs = (state.docs || []).filter(d => !docId || d.doc_id === docId);
+  const years = [...new Set(docs.flatMap(d => d.years || []))].sort().reverse();
+  sel.replaceChildren(el("option", { value: "" }, years.length ? "All years" : "—"));
+  years.forEach(y => sel.append(el("option", { value: y }, `AY ${y}`)));
+  sel.disabled = !years.length;
+  if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
+}
+$("scope-doc").addEventListener("change", renderYearOptions);
+async function removeDoc(d) {
+  if (!confirm(`Remove "${d.source}" from the index?`)) return;
+  try { await api(`/api/documents/${d.doc_id}`, { method: "DELETE" }); loadDocs(); } catch (e) { showError(e.message); }
+}
+
+// ---------- ask ----------
+async function ask(useModel = false) {
+  const question = $("question").value.trim();
+  if (!question) return;
+  const btn = $("ask"); btn.disabled = true;
+  $("answer").classList.add("show");
+  state.askStart = Date.now(); state.askStatus = "Finding relevant passages"; state.firstToken = false;
+  clearInterval(state.timer);
+  const tick = () => {
+    if (state.firstToken) return;
+    const secs = Math.round((Date.now() - state.askStart) / 1000);
+    $("answer-head").replaceChildren(el("span", { class: "badge warn" }, el("span", { class: "spinner" }), ` ${state.askStatus} · ${secs}s`));
+  };
+  tick(); state.timer = setInterval(tick, 1000);
+  $("answer-body").textContent = ""; $("answer-body").classList.remove("md");
+  $("answer-warn").replaceChildren(); $("answer-sources").replaceChildren();
+  try {
+    const r = await api("/api/ask", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question, category: $("scope-cat").value || null, doc_id: $("scope-doc").value || null,
+                             year: $("scope-year").value || null, use_model: useModel }),
+    });
+    const reader = r.body.getReader(), dec = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf("\n")) >= 0) { handleEvent(JSON.parse(buf.slice(0, nl))); buf = buf.slice(nl + 1); }
+    }
+  } catch (e) {
+    $("answer-head").replaceChildren(el("span", { class: "badge err" }, "Error"));
+    $("answer-warn").replaceChildren(el("div", { class: "alert err" }, e.message));
+  }
+  clearInterval(state.timer);
+  btn.disabled = false;
+}
+function handleEvent(ev) {
+  if (ev.type === "status") {
+    state.askStatus = `Model reading ${ev.sources} sources (~${ev.context_tokens.toLocaleString()} tokens)`;
+    return;
+  }
+  if (ev.type === "token") {
+    if (!state.firstToken) {
+      state.firstToken = true;
+      const secs = Math.round((Date.now() - state.askStart) / 1000);
+      $("answer-head").replaceChildren(el("span", { class: "badge warn" }, el("span", { class: "spinner" }), ` Writing · first words after ${secs}s`));
+    }
+    $("answer-body").textContent += ev.text; return;
+  }
+  if (ev.type === "error") {
+    state.firstToken = true;
+    $("answer-head").replaceChildren(el("span", { class: "badge err" }, "Error"));
+    $("answer-warn").replaceChildren(el("div", { class: "alert err" }, ev.message));
+    return;
+  }
+  const body = $("answer-body");
+  renderMarkdown(body, ev.text || body.textContent);
+  state.firstToken = true;
+  const ms = Date.now() - state.askStart;
+  const took = ms < 1000 ? `${ms} ms` : `${Math.round(ms / 1000)}s`;
+  const head = [
+    el("span", { class: "badge ok" }, `Answer · ${took}`),
+    el("span", { class: `badge ${ev.route === "finance" ? "finance" : "muted"}` }, ev.model),
+  ];
+  if (ev.route === "facts") head.push(el("button", { class: "btn ghost", title: "Send this question to the language model instead",
+                                                     onclick: () => ask(true) }, "Ask the model"));
+  $("answer-head").replaceChildren(...head);
+  if (ev.unverified?.length) {
+    $("answer-warn").replaceChildren(el("div", { class: "alert warn" },
+      "Not found verbatim in the sources — verify (may be a calculation): ",
+      ...ev.unverified.flatMap((n, i) => [i ? ", " : "", el("span", { class: "num" }, n)])));
+  }
+  const src = $("answer-sources");
+  if (ev.sources?.length) src.append(el("label", { class: "field" }, "Sources"));
+  ev.sources?.forEach((s, i) => src.append(el("details", { class: "src" },
+    el("summary", {}, el("span", { class: "badge muted" }, `[${i + 1}]`), el("span", { class: "lbl", title: s.label }, s.label),
+      el("span", { class: "hint" }, s.score.toFixed(2))),
+    el("pre", {}, s.text))));
+}
+$("ask").addEventListener("click", () => ask(false));
+$("question").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) ask(false); });
+
+// ---------- minimal, safe markdown (tables, headings, lists, bold/italic) ----------
+function escapeHtml(t) { return t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+function inline(t) {
+  return escapeHtml(t)
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[\s(])_(.+?)_(?=[\s).,;:]|$)/g, "$1<em>$2</em>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>");
+}
+const NUMERIC = /^[-(]?[\d,]+(\.\d+)?\)?$/;
+function renderMarkdown(node, text) {
+  const lines = text.replace(/\r/g, "").split("\n");
+  const out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (/^\s*\|/.test(line)) {
+      const rows = [];
+      while (i < lines.length && /^\s*\|/.test(lines[i])) rows.push(lines[i++]);
+      const cells = r => r.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map(c => c.trim());
+      const body = rows.filter(r => !/^\s*\|?\s*:?-{2,}/.test(r));
+      const [head, ...rest] = body;
+      let html = "<table><thead><tr>" + cells(head || "").map(c => `<th>${inline(c)}</th>`).join("") + "</tr></thead><tbody>";
+      for (const r of rest) html += "<tr>" + cells(r).map(c => `<td${NUMERIC.test(c) ? ' class="num"' : ""}>${inline(c)}</td>`).join("") + "</tr>";
+      out.push(html + "</tbody></table>");
+      continue;
+    }
+    if (/^\s*(---|\*\*\*)\s*$/.test(line)) { out.push("<hr>"); i++; continue; }
+    const h = line.match(/^(#{1,6})\s+(.*)$/);
+    if (h) { out.push(`<h${h[1].length > 3 ? 4 : 3}>${inline(h[2])}</h${h[1].length > 3 ? 4 : 3}>`); i++; continue; }
+    if (/^\s*([*-]|\d+\.)\s+/.test(line)) {
+      const ordered = /^\s*\d+\./.test(line);
+      const items = [];
+      while (i < lines.length && /^\s*([*-]|\d+\.)\s+/.test(lines[i])) {
+        const depth = lines[i].match(/^\s*/)[0].length >= 2 ? ' style="margin-left:18px"' : "";
+        items.push(`<li${depth}>${inline(lines[i].replace(/^\s*([*-]|\d+\.)\s+/, ""))}</li>`);
+        i++;
+      }
+      out.push(`<${ordered ? "ol" : "ul"}>${items.join("")}</${ordered ? "ol" : "ul"}>`);
+      continue;
+    }
+    if (!line.trim()) { i++; continue; }
+    const para = [];
+    while (i < lines.length && lines[i].trim() && !/^\s*(\||#|[*-]\s|\d+\.\s|---)/.test(lines[i])) para.push(inline(lines[i++]));
+    if (para.length) out.push(`<p>${para.join("<br>")}</p>`); else i++;
+  }
+  node.innerHTML = out.join("");
+  node.classList.add("md");
+}
+
+loadMeta().then(() => { loadDocs(); pollJobs(); });
+</script>
+</body>
+</html>

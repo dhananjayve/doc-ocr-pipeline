@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "finpipe"
+version = "0.1.0"
+description = "High-performance local pipeline for financial PDFs (digital + scanned): Docling layout parsing, markdown-aware chunking, hybrid RAG and a small language model."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "docling>=2.30",
+    "rapidocr>=3.0",          # PP-OCR (PaddleOCR) models on ONNX Runtime, used by Docling for scanned pages
+    "onnxruntime>=1.17",
+    "pypdfium2>=4.30",
+    "pdfplumber>=0.11",       # fast geometric table extraction for digital pages
+    "chromadb>=0.5",
+    "sentence-transformers>=3.0",
+    "httpx>=0.27",
+    "pydantic>=2.6",
+    "pydantic-settings>=2.2",
+    "pillow>=10",
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "python-multipart>=0.0.9",
+]
+
+[project.optional-dependencies]
+easyocr = ["easyocr>=1.7"]
+tesseract = ["tesserocr>=2.6"]
+fingpt = ["transformers>=4.40", "peft>=0.10", "accelerate>=0.30"]
+dev = ["pytest>=8", "reportlab>=4"]
+
+[project.scripts]
+finpipe = "finpipe.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+finpipe = ["web/*.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
